@@ -15,7 +15,7 @@ import logging
 import os
 import sys
 import traceback
-import imp  # pylint: disable=deprecated-module
+import importlib
 import inspect
 import time
 from abc import ABC, abstractmethod
@@ -185,7 +185,9 @@ class PluginsRunner(object):
                 f_module = sys.modules[module_name]
             else:
                 try:
-                    f_module = imp.load_source(module_name, f)
+                    spec = importlib.util.spec_from_file_location(module_name, f)
+                    f_module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(f_module)
                 except (IOError, OSError, ImportError, SyntaxError) as ex:
                     logger.warning("can't load module '%s': %s", f, ex)
                     continue
