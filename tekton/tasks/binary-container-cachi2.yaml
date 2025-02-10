@@ -21,6 +21,14 @@ spec:
     - name: log-level
       description: Set cachi2 log level (debug, info, warning, error)
       default: "info"
+    - name: ca-trust-config-map-name
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: ca-trust-config-map-key
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
 
   workspaces:
     - name: ws-build-dir
@@ -30,6 +38,15 @@ spec:
     - name: ws-koji-secret  # access with $(workspaces.ws-koji-secret.path)/token
     - name: ws-reactor-config-map
     - name: ws-autobot-keytab
+
+  volumes:
+    - name: trusted-ca
+      configMap:
+        name: $(params.ca-trust-config-map-name)
+        items:
+          - key: $(params.ca-trust-config-map-key)
+            path: ca-bundle.crt
+        optional: true
 
   stepTemplate:
     env:
@@ -66,6 +83,10 @@ spec:
         - name: LOG_LEVEL
           value: $(params.log-level)
       workingDir: $(workspaces.ws-home-dir.path)
+      volumeMounts:
+        - name: trusted-ca
+          mountPath: /mnt/trusted-ca
+          readOnly: true
       resources:
         requests:
           memory: 512Mi
@@ -83,6 +104,13 @@ spec:
         if [ ! -d "$CACHI2_DIR" ]; then
           echo "Skipping step: remote sources not found"
           exit 0
+        fi
+
+        ca_bundle=/mnt/trusted-ca/ca-bundle.crt
+        if [ -f "$ca_bundle" ]; then
+          echo "INFO: Using mounted CA bundle: $ca_bundle"
+          cp -vf $ca_bundle /etc/pki/ca-trust/source/anchors
+          update-ca-trust
         fi
 
         SBOMS=()
